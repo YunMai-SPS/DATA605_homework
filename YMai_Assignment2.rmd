@@ -1,0 +1,229 @@
+---
+title: "YMai_Assignment2"
+author: "Yun Mai"
+date: "September 5, 2017"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**1. Problem set 1**
+
+(1) Show that $A^TA \ne AA^T$ in general. (Proof and demonstration.)
+
+(2) For a special type of square matrix A, we get $A^T A \ne AA^T$. Under what conditions could this be true? (Hint: The Identity matrix I is an example of such a matrix).
+
+**Answer**
+
+***Proof***
+
+For a n x m matrix $A$, $A^T$ is a m x n matrix. $A^T A$ is m x m matrix. $AA^T$ is a n x n matrix.
+
+if $n\ne m$, the size of $A^TA$ and $AA^T$ are different, then we know  $A^TA \ne AA^T$
+
+Even if $n = m$ and $A^TA$ and $AA^T$ are the same size square matrices,  $A^TA$ and $AA^T$ are not equal at most of the time.
+
+According to Theorem MMT Matrix Multiplication and Transposes, Suppose A is an m x n matrix and B is an n x m matrix. Then (AB)t=BtAt(AB)t=BtAt, we know that
+
+\begin{equation}  
+\begin{split}
+(A^T A)^T &= A^T(A^T)^T\\
+&= A^TA
+\end{split}
+\end{equation}
+
+So $A^TA$ is the transpose of itself.
+
+assuming $A^TA=AA^T$ 
+
+\begin{equation}  
+\begin{split}
+(A^T A)^T &= (AA^T)^T\\
+&= (A^T)^TA^T\\
+\end{split}
+\end{equation}
+
+$(A^T A)^T = (A^T)^TA^T$ is aganist Theorem MMT, so the assumption $A^TA = AA^T$ is not right, which means $A^TA \ne AA^T$ in general.
+
+For example, 
+\begin{equation*}
+  A=
+  \begin{bmatrix}
+    1&2\\
+    3&4
+  \end{bmatrix}
+\end{equation*} 
+
+\begin{equation*}
+  A^T=
+  \begin{bmatrix}
+    1&3\\
+    2&4
+  \end{bmatrix}
+\end{equation*} 
+
+\begin{equation*}
+  AA^T=
+  \begin{bmatrix}
+    1\times1+2\times2& 1\times3+2\times4 \\
+    3\times1+4\times2& 3\times3+4\times4
+  \end{bmatrix}
+\end{equation*} 
+
+\begin{equation*}
+  AA^T= 
+  \begin{bmatrix}
+    5& 11 \\
+    11& 25
+  \end{bmatrix}
+\end{equation*} 
+
+\begin{equation*}
+  A^TA=
+  \begin{bmatrix}
+    1\times1+3\times3& 1\times2+3\times4 \\
+    2\times1+4\times3& 2\times2+4\times4
+  \end{bmatrix}
+\end{equation*} 
+
+\begin{equation*}
+  A^TA= 
+  \begin{bmatrix}
+    10& 14 \\
+    14& 20
+  \end{bmatrix}
+\end{equation*} 
+
+```{r}
+(A <- matrix(c(1,2,3,4,5,6),2,byrow=T))
+(AAT <- A%*%t(A))
+(ATA <- t(A)%*%A)
+identical(AAT,ATA)
+```
+
+
+```{r}
+(A <- matrix(c(1,2,3,4),2,byrow=T))
+(AAT <- A%*%t(A))
+(ATA <- t(A)%*%A)
+identical(AAT,ATA)
+```
+
+**2. Problem set 2**
+
+Matrix factorization is a very important problem. There are supercomputers built just to do matrix factorizations. Every second you are on an airplane, matrices are being factorized. Radars that track flights use a technique called Kalman ltering. At the heart
+of Kalman Filtering is a Matrix Factorization operation. Kalman Filters are solving linear systems of equations when they track your ight using radars.
+
+Write an R function to factorize a square matrix A into LU or LDU, whichever you prefer. Please submit your response in an R Markdown document using our class naming convention, E.g. LFulton_Assignment2_PS2.png 
+
+You don't have to worry about permuting rows of A and you can assume that A is less than 5x5, if you need to hard-code any variables in your code. If you doing the entire
+assignment in R, then please submit only one markdown document for both the problems.
+
+```{r}
+# According to the Doolittle algorithm for LU decomposition the diagonal is assumed to belong to the upper triangle. The diagonal for the lower triangle is then assumed to be all 1s.
+
+# for a square matrix x, LU decomposition function could be written as following:
+lu_decp_u <- function(x){
+  # the number of rows 
+  n <- dim(x)[1]
+  # create empty matrices for L and U
+  L <- matrix(rep(0,n^2), nrow = n, byrow=T)
+  U <- matrix(rep(0,n^2), nrow = n, byrow=T)
+  # the first column of lower triangel matrix L is the same as the first column of x
+  L[,1] <- x[,1]
+  # Also set the diaganal of L as 1
+  for(i in 1:n){
+    L[i,i] <- 1
+  }
+  # the first row of upper triangel matrix U is the same as the first row of x
+  U[1,] <- x[1,]
+  # calculate row by row starting from U[2,], then L[3,], U[3,],L[4,],U[4],...L[n,], and U[n,]
+  for (i in 2:n){
+    for(j in 2:n){
+      # calculate the upper triangel matrix U first, column index is larger than row index
+      if (j >= i){
+        sum_u <- 0
+        for(k in 1:n){
+          if(k!=i){
+            sum_u <- sum_u + L[i,k]*U[k,j]
+          }
+        }
+        U[i,j]<-(x[i,j]-sum_u)/L[i,i]
+      }
+      # then calculate the lower  triangel matrix L, column index is smaller than row index
+      else{
+        sum_l <- 0
+        for(k in 1:n){
+          if(k!=j){
+            sum_l <- sum_l +L[i,k]*U[k,j]
+          }
+        }
+        L[i,j]<-(x[i,j]-sum_l)/U[j,j]
+      }
+    }
+  }
+  return(U)
+} 
+
+lu_decp_l <- function(x){
+  # the number of rows 
+  n <- dim(x)[1]
+  # create empty matrices for L and U
+  L <- matrix(rep(0,n*n),4,byrow=T)
+  U <- matrix(rep(0,n*n),4,byrow=T)
+  # the first column of lower  triangel matrix L is the same as the first column of x
+  L[,1] <- x[,1]
+  # Also set the diaganal of L as 1
+  for(i in 1:n){
+    L[i,i] <- 1
+  }
+  # the first row of upper  triangel matrix U is the same as the first row of x
+  U[1,] <- x[1,]
+  # calculate row by row starting from U[2,], then L[3,], U[3,],L[4,],U[4],...L[n,], and U[n,]
+  for (i in 2:n){
+    for(j in 2:n){
+      # calculate the upper  triangel matrix U first, column index is larger than row index
+      if (j >= i){
+        sum_u <- 0
+        for(k in 1:n){
+          if(k!=i){
+            sum_u <- sum_u + L[i,k]*U[k,j]
+          }
+        }
+        U[i,j]<-(x[i,j]-sum_u)/L[i,i]
+      }
+      # then calculate the lower  triangel matrix L, column index is smaller than row index
+      else{
+        sum_l <- 0
+        for(k in 1:n){
+          if(k!=j){
+            sum_l <- sum_l +L[i,k]*U[k,j]
+          }
+        }
+        L[i,j]<-(x[i,j]-sum_l)/U[j,j]
+      }
+    }
+  }
+  return(L)
+} 
+
+(B <- matrix(c(1,2,3,4,2,1,1,2,4,2,8,6,2,4,2,8),4,byrow=T))
+(l<- lu_decp_l(B))
+(u<- lu_decp_u(B))
+(lu_m <-l%*%u)
+```
+
+Then, use lu and expand functions from Matrix library to do decomposition.
+```{r}
+library(Matrix)
+lum_b <- lu(B)
+elu <- expand(lum_b)
+(lu_b <- elu$P%*%elu$L%*%elu$U)
+all(lu_b,lu_m) # lu_m is the product of mannually built function and lu_b is the package built_in function.
+```
+
+```
+The L and U calcualted by two methods are differernt because lu function decomposed the matrix as P,L,and U.
+```
