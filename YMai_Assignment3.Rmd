@@ -1,0 +1,112 @@
+---
+title: "YMai_Assigment3_605"
+author: "Yun Mai"
+date: "September 16, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Load the packages**
+```{r}
+suppressWarnings(suppressMessages(library(Matrix))) # eigen and rankMatrix functions will be used 
+suppressWarnings(suppressMessages(library(pracma))) #charpoly function will be used
+```
+
+##  1. Problem set 1
+
+(1) What is the rank of the matrix A?
+
+\begin{equation}
+  A=
+  \begin{pmatrix}
+    1 & 2 & 3 & 4 \\
+    1 & 0 & 1 & 3 \\
+    0 & 1 & 2 & 1 \\
+    5 & 4 & 2 & 3
+  \end{pmatrix}
+  \label{eq:1}
+\end{equation}
+
+```{r}
+(A <- matrix(c(1, 2, 3, 4, 1, 0, 1, 3, 0, 1, 2, 1, 5, 4, 2, 3),4,byrow = T))
+
+rank_a <- rankMatrix(A)
+print(paste("rank of matrix A is ",rank_a))
+```
+
+(2) Given an mxn matrix where m > n, what can be the maximum rank? The minimum rank, assuming that the matrix is non-zero?
+
+For an mxn matrix where m > n, let B be a row-equivalent matrix in reduced row-echelon form. According to Theorem CRN(Computing Rank and Nullity),  Let r denote the number of pivot columns (or the number of nonzero rows),then r(A) = r. For matrix B, the left most nonzero entry of each nonzero row is equal to 1 and it is the only nonzero entry in its column. The pivot columns could form a indentity matrix if we rearrange matrix B. If this indentity matrix is in size kxk, then it is obvious that the maximum of k is equal to m or n which ever is smaller. Here m > n, so we know r < n. For nonzero matrix, the minimum number of pivot columns would be 1. So r >= 1. The minimum rank could be 1. 
+
+(3) What is the rank of matrix B?
+\begin{equation}
+  B=
+  \begin{pmatrix}
+  1&2&1\\
+  3&6&3\\
+  2&4&2
+  \end{pmatrix}
+  \label{eq:2}
+\end{equation}
+
+```{r}
+(B <- matrix(c(1,2,1,3,6,3,2,4,2),3,byrow = T))
+
+rank_b <- rankMatrix(B)
+print(paste("rank of matrix A is ",rank_b))
+
+```
+
+## 2. Problem set 2
+
+Compute the eigenvalues and eigenvectors of the matrix A. You'll need to show your work. You'll need to write out the characteristic polynomial and show your solution.
+
+\begin{equation}
+  A=
+  \begin{pmatrix}
+  1&2&3\\
+  0&4&5\\
+  0&0&6
+  \end{pmatrix}
+  \label{eq:3}
+\end{equation}
+
+### eigenvalues
+```{r}
+(C <- matrix(c(1,2,3,0,4,5,0,0,6),3,byrow = T))
+eigen_c <- eigen(C)
+eigenvalue <- eigen_c$values
+print(paste("eigenvalues includes:",list(round(eigenvalue))))
+```
+
+### eigenvectors
+```{r}
+I3 <- matrix(c(1,0,0,0,1,0,0,0,1),3, byrow=T)
+(NS_6 <- nullspace(C-6*I3)) # eigenvectors for # eigenvalue = 6
+(NS_4 <- nullspace(C-4*I3)) # eigenvectors for # eigenvalue = 4
+(NS_1 <- round(nullspace(C-1*I3))) # eigenvectors for # eigenvalue = 1
+
+# or eigenvectors could be calculated as follows:
+(reduce_6 <- rref(C-6*I3))
+(NS_six <- matrix(c(1.6,2.5,1),3,byrow=T)) # eigenvectors for # eigenvalue = 6
+(reduce_4 <- rref(C-4*I3))
+(NS_four <- matrix(c(0.67,1,0),3,byrow=T)) # eigenvectors for # eigenvalue = 4
+(reduce_1 <- rref(C-1*I3))
+(NS_one <- matrix(c(1,0,0),3,byrow=T)) # eigenvectors for # eigenvalue = 1
+```
+
+### Characteristic Polynomials
+```{r}
+(polyn <- charpoly(C,info=T))
+```
+
+So the Characteristic Polynomials is : $x^3-11x^2+34x+24=(x-6)(x-4)(x-1)$
+
+### The solution of the Characteristic Polynomial
+```{r}
+print(paste("The solution of the Characteristic Polynomial are: ",list(roots(polyn$cp))))
+
+```
