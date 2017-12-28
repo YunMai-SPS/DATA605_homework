@@ -1,5 +1,5 @@
 ---
-title: "YMai_final_project_p2"
+title: "YMai_final_project_part2"
 author: "Yun Mai"
 date: "December 27, 2017"
 output: github_document
@@ -279,8 +279,6 @@ ggplot(testframe.treat, aes(x = pred_rf, y = SalePrice_clean)) +
   geom_point() + 
   geom_abline()
 
-
-
 ```
 
 
@@ -425,7 +423,7 @@ newvars_test <- scoreFrame_test %>%
     use_series(varName)
 
 # Use prepare() to one-hot-encode testframe
-(testframe.treat <- prepare(treatplan_test, df_lin_test, varRestriction = newvars_test))
+testframe.treat <- prepare(treatplan_test, df_lin_test, varRestriction = newvars_test)
 
 
 #Train a model using train data
