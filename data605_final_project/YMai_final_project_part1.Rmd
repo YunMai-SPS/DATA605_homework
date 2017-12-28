@@ -1,0 +1,653 @@
+---
+title: "YMai_final_project_part1"
+author: "Yun Mai"
+date: "December 17, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,eval=F}
+install.packages('geoR')
+remove.packages(tidyr)
+install.packages("tidyr")
+packageVersion("tidyr")
+install.packages('Hmisc')
+install.packages('fitdistrplus')
+install.packages('actuar')
+install.packages('flexsurv')
+install.packages('vtreat') # One-hot-encoding and data cleaning
+install.packages('Metrics') #rmse()
+install.packages('broom') #glance() 
+install.packages('ranger') # random forest model
+install.packages('xgboost') # gradient boost model
+```
+
+
+#### Load the packages
+```{r}
+suppressWarnings(suppressMessages(library(tidyr)))
+suppressWarnings(suppressMessages(library(dplyr)))
+suppressWarnings(suppressMessages(library(knitr)))
+suppressWarnings(suppressMessages(library(ggplot2)))
+suppressWarnings(suppressMessages(library(graphics)))
+#suppressWarnings(suppressMessages(library(gplots)))
+suppressWarnings(suppressMessages(library(pastecs)))
+suppressWarnings(suppressMessages(library(MASS)))
+suppressWarnings(suppressMessages(library(fitdistrplus)))
+suppressWarnings(suppressMessages(library(actuar)))
+suppressWarnings(suppressMessages(library(geoR))) #boxcoxfit
+suppressWarnings(suppressMessages(library(flexsurv))) #dllogis
+
+suppressWarnings(suppressMessages(library(vtreat)))  # One-hot-encoding and data cleaning
+suppressWarnings(suppressMessages(library(magrittr)))  # use_series suppressWarnings(suppressMessages(library(Metrics))) #rmse()
+suppressWarnings(suppressMessages(library(broom)))  #glance() 
+suppressWarnings(suppressMessages(library(ranger))) # random forest model
+suppressWarnings(suppressMessages(library(xgboost))) # gradient boost model
+#suppressWarnings(suppressMessages(library( )))
+
+```
+
+
+## Data source
+
+compete in the House Prices: Advanced Regression Techniques competition.  https://www.kaggle.com/c/house-prices-advanced-regression-techniques . 
+
+Pick one of the quantitative independent variables from the training data set (train.csv) , and define that variable as  X.   Pick SalePrice as the dependent variable, and define it as Y for the next analysis.   
+
+Data fields
+
+Here's a brief version of what you'll find in the data description file.
+
+SalePrice - the property's sale price in dollars. This is the target variable that you're trying to predict.
+
+MSSubClass: The building class
+
+MSZoning: The general zoning classification
+
+LotFrontage: Linear feet of street connected to property
+
+LotArea: Lot size in square feet
+
+Street: Type of road access
+
+Alley: Type of alley access
+
+LotShape: General shape of property
+
+LandContour: Flatness of the property
+
+Utilities: Type of utilities available
+
+LotConfig: Lot configuration
+
+LandSlope: Slope of property
+
+Neighborhood: Physical locations within Ames city limits
+
+Condition1: Proximity to main road or railroad
+
+Condition2: Proximity to main road or railroad (if a second is present)
+
+BldgType: Type of dwelling
+
+HouseStyle: Style of dwelling
+
+OverallQual: Overall material and finish quality
+
+OverallCond: Overall condition rating
+
+YearBuilt: Original construction date
+
+YearRemodAdd: Remodel date
+
+RoofStyle: Type of roof
+
+RoofMatl: Roof material
+
+Exterior1st: Exterior covering on house
+
+Exterior2nd: Exterior covering on house (if more than one material)
+
+MasVnrType: Masonry veneer type
+
+MasVnrArea: Masonry veneer area in square feet
+
+ExterQual: Exterior material quality
+
+ExterCond: Present condition of the material on the exterior
+
+Foundation: Type of foundation
+
+BsmtQual: Height of the basement
+
+BsmtCond: General condition of the basement
+
+BsmtExposure: Walkout or garden level basement walls
+
+BsmtFinType1: Quality of basement finished area
+
+BsmtFinSF1: Type 1 finished square feet
+
+BsmtFinType2: Quality of second finished area (if present)
+
+BsmtFinSF2: Type 2 finished square feet
+
+BsmtUnfSF: Unfinished square feet of basement area
+
+TotalBsmtSF: Total square feet of basement area
+
+Heating: Type of heating
+
+HeatingQC: Heating quality and condition
+
+CentralAir: Central air conditioning
+
+Electrical: Electrical system
+
+1stFlrSF: First Floor square feet
+
+2ndFlrSF: Second floor square feet
+
+LowQualFinSF: Low quality finished square feet (all floors)
+
+GrLivArea: Above grade (ground) living area square feet
+
+BsmtFullBath: Basement full bathrooms
+
+BsmtHalfBath: Basement half bathrooms
+
+FullBath: Full bathrooms above grade
+
+HalfBath: Half baths above grade
+
+Bedroom: Number of bedrooms above basement level
+
+Kitchen: Number of kitchens
+
+KitchenQual: Kitchen quality
+
+TotRmsAbvGrd: Total rooms above grade (does not include bathrooms)
+
+Functional: Home functionality rating
+
+Fireplaces: Number of fireplaces
+
+FireplaceQu: Fireplace quality
+
+GarageType: Garage location
+
+GarageYrBlt: Year garage was built
+
+GarageFinish: Interior finish of the garage
+
+GarageCars: Size of garage in car capacity
+
+GarageArea: Size of garage in square feet
+
+GarageQual: Garage quality
+
+GarageCond: Garage condition
+
+PavedDrive: Paved driveway
+
+WoodDeckSF: Wood deck area in square feet
+
+OpenPorchSF: Open porch area in square feet
+
+EnclosedPorch: Enclosed porch area in square feet
+
+3SsnPorch: Three season porch area in square feet
+
+ScreenPorch: Screen porch area in square feet
+
+PoolArea: Pool area in square feet
+
+PoolQC: Pool quality
+
+Fence: Fence quality
+
+MiscFeature: Miscellaneous feature not covered in other categories
+
+MiscVal: $Value of miscellaneous feature
+
+MoSold: Month Sold
+
+YrSold: Year Sold
+
+SaleType: Type of sale
+
+SaleCondition: Condition of sale
+
+load packages.
+
+
+```{r}
+house <- read.csv('https://raw.githubusercontent.com/YunMai-SPS/DATA605_homework/master/data605_final_project/train.csv')
+
+kable(head(house,5))
+```
+
+```{r}
+Y <- house$SalePrice
+X <- house$LotArea         # Lot size in square feet
+# X <- house$OverallCond   #Overall condition rating
+# X <- house$OverallQual   #Overall material and finish quality
+
+summary(X)
+summary(Y)
+```
+
+**View the distribution of independent and dependent variables.**
+```{r}
+p <- ggplot(house,aes(x=Y))
+p <- p + geom_histogram(bins=50, fill = "#41c7f4",alpha = .8)
+p <- p + ggtitle('House Price distribution')
+p <- p + geom_vline(xintercept = mean(Y), color='#f44141',size=1, show.legend = T)
+p <- p + geom_vline(xintercept = median(Y), color='#50f442', size=1, show.legend = T)
+
+p
+
+
+```
+
+**The house orice skewed to the right and  mean(red) greater than the median(green) **
+
+## 1.Probability  
+
+#### Calculate as a minimum the below probabilities a through c.  Assume the small letter "x" is estimated as the 1st quartile of the X variable, and the small letter "y" is estimated as the 2d quartile of the Y variable.  Interpret the meaning of all probabilities.  
+
+#### a.	 P(X>x | Y>y)		b.  P(X>x & Y>y)		c.  P(X<x | Y>y)		
+
+a. P(X>x | Y>y)  
+
+1st quartile of X and 1st Quartile of Y
+```{r}
+x <- quantile(X, 0.25)
+cat('The first quatile of X is' , x)
+```
+
+```{r}
+y <- quantile(Y, 0.25)
+cat('The first quatile of Y is' , y)
+
+```
+
+$P(A|B)=P(A\cap B)/P(B)$
+```{r}
+sub_xy <- subset(house , !is.na(LotArea | SalePrice) & (LotArea > x & SalePrice > y))
+sub_y <- subset(house , !is.na(SalePrice) & SalePrice > y)
+
+# remove rows containing NA in SalePrice if any
+sale_NoNA <- house %>% drop_na(SalePrice)
+
+p_xy <- nrow(sub_xy)/nrow(sale_NoNA)
+p_y <- nrow(sub_y)/nrow(sale_NoNA)
+
+p_a <- p_xy/p_y
+  
+cat('
+P(X>x | Y>y) is the probability of LotArea is higer then 1st quantile (more then 7553.5) given that SalePrice is higher then 1st quantile (higer then 129975). P(X>x | Y>y) = ',round(p_a,4))
+```
+
+b.  P(X>x & Y>y)
+
+```{r}
+sub_xy <- subset(house , !is.na(LotArea | SalePrice) &(LotArea > x & SalePrice > y) )
+sub_y <- subset(house , !is.na(SalePrice) & SalePrice > y)
+p_b <- nrow(sub_xy)/nrow(sale_NoNA)
+cat('
+P(X>x & Y>y) is the probability of LotArea is higer then 1st quantile (more then 7553.5) and  SalePrice is higher then 1st quantile (higer then 129975). P(X>x | Y>y) = ',round(p_b,4))
+```
+
+c.  P(X<x | Y>y)		
+
+
+```{r}
+sub_xy <- subset(house , !is.na(LotArea | SalePrice) &(LotArea < x & SalePrice > y) )
+sub_y <- subset(house , !is.na(SalePrice) & SalePrice > y)
+
+p_xy <- nrow(sub_xy)/nrow(sale_NoNA)
+p_y <- nrow(sub_y)/nrow(sale_NoNA)
+p_c <- p_xy/p_y
+  
+cat('
+P(X>x & Y>y) is the probability of LotArea is lower then 1st quantile (more then 7553.5) given that SalePrice is higher then 1st quantile (higer then 129975). P(X>x | Y>y) = ',round(p_c,4))
+```
+
+#### Does splitting the training data in this fashion make them independent? In other words, does P(XY)=P(X)P(Y))?  Check mathematically, and then evaluate by running a Chi Square test for association.  
+
+P(X>x & Y>y) = P(X>x)P(Y>y)?
+```{r}
+sub_x <- subset(house , !is.na(LotArea) & (LotArea > x))
+sub_y <- subset(house , !is.na(SalePrice) & SalePrice > y)
+sub_xy <- subset(house , !is.na(LotArea | SalePrice) &(LotArea < x & SalePrice > y) )
+
+p_x <- nrow(sub_x)/nrow(sale_NoNA)
+p_y <- nrow(sub_y)/nrow(sale_NoNA)
+p_xy <- nrow(sub_xy)/nrow(sale_NoNA)
+
+p_xy == p_x*p_y
+```
+
+So we know $P(X>x \cap Y>y) \neq P(X>x)P(Y>y)$. Splitting the training data in this fashion does not make X and Y independent.
+
+P(X<x | Y>y) = P(X<x)P(Y>y)?	
+```{r}
+sub_x <- subset(house , !is.na(LotArea) & (LotArea < x))
+sub_y <- subset(house , !is.na(SalePrice) & SalePrice > y)
+sub_xy <- 
+
+p_x <- nrow(sub_x)/nrow(sale_NoNA)
+p_y <- nrow(sub_y)/nrow(sale_NoNA)
+p_xy <- p_c
+
+p_xy == p_x*p_y
+```
+
+So we know $P(X<x \cap Y>y) \neq P(X<x)P(Y>y)$. Splitting the training data in this fashion does not make X and Y independent.
+
+**Chi Square test**
+
+Null hypothesis (H0): the row and the SalePrice of the LotArea are independent.
+
+Alternative hypothesis (H1):the SalePrice of the LotArea are dependent
+
+To test the hypothesis whether  the SalePrice is independent of the LotArea at .05 significance level, first the contingency table will be created: 
+```{r}
+house$SalePrice_ctg =  ifelse(house$SalePrice <= y ,'<= Q1','>Q1')
+house$LotArea_ctg =  ifelse(house$LotArea <= x ,'<= q1','>q1')
+
+(tbl <- table(house$SalePrice_ctg,house$LotArea_ctg))
+
+mosaicplot(tbl, shade = TRUE, las=2, main = '', xlab ="LotArea", ylab="SalePrice",)
+
+chisq.test(tbl) 
+```
+As the p-value 9.273e-09 is less than the .05 significance level, the null hypothesis is rejected and the conclusion is that the SalePrice of the LotArea are dependent.
+
+## 2. Descriptive and Inferential Statistics.
+
+#### Provide univariate descriptive statistics and appropriate plots for both variables.   Provide a scatterplot of X and Y.  Transform both variables simultaneously using Box-Cox transformations.  
+
+```{r}
+var_NoNA <- house[,c('SalePrice','LotArea')] %>% drop_na()
+kable(stat.desc(var_NoNA))
+
+```
+
+```{r}
+p <- ggplot(var_NoNA,aes(x=LotArea, y = SalePrice))
+p <- p + geom_point(color='#414af4')
+p + geom_smooth(method = lm)
+
+
+```
+
+**Transform both variables simultaneously using Box-Cox transformations.**
+```{r}
+#library(geoR)
+bc <- boxcoxfit(X, lambda2 = TRUE)
+
+lambda1 <- bc$lambda[1]
+
+#X.new = (X ^ lambda - 1) / lambda
+(X_new <- (X^lambda1 - 1) / lambda1)
+(Y_new <- (Y^lambda1 - 1) / lambda1)
+
+# View the distribution before and after transformation
+par(mfrow = c(2, 2))
+hist(X)
+hist(X_new)
+hist(Y)
+hist(Y_new)
+
+par(mfrow = c(3, 2))
+qqnorm(X) 
+qqline(X, col = 2)
+qqnorm(X_new) 
+qqline(X_new, col = 2)
+qqnorm(Y) 
+qqline(Y, col = 2)
+qqnorm(Y_new) 
+qqline(Y_new, col = 2)
+qqplot(X, Y, plot.it = TRUE, xlab = deparse(substitute(X)),
+       ylab = deparse(substitute(Y)))
+qqplot(X_new, Y_new, plot.it = TRUE, xlab = deparse(substitute(X_new)),
+       ylab = deparse(substitute(Y_new)))
+
+
+qqline(Y_new, datax = FALSE, distribution = qnorm,
+       probs = c(0.25, 0.75), qtype = 7)
+
+```
+
+Comparing the histograms and the probability plot before and after Box-Cox transformation( Lambda = 0.03), doing transformtion I obtained a normal distribution of the transformed data.
+
+Then try another mathod: boxcox function from MASS package.
+
+
+```{r}
+Box <- boxcox(X ~ 1,              # Transform X as a single vector
+             lambda = seq(-6,6,0.1)      # Try values -6 to 6 by 0.1
+             )
+
+Cox <- data.frame(Box$x, Box$y)            # Create a data frame with the results
+
+Cox2 <- Cox[with(Cox, order(-Cox$Box.y)),] # Order the new data frame by decreasing y
+
+Cox2[1,]                                  # Display the lambda with the greatest
+                                          #    log likelihood
+
+
+
+
+(lambda <- Cox2[1, "Box.x"])                 # Extract that lambda
+```
+
+
+```{r}
+(X_box <- log(X))    # Transform the original data
+(Y_box <- log(Y))
+
+par(mfrow = c(2, 2))
+hist(X)
+hist(X_box)
+
+hist(Y)
+hist(Y_box)
+
+par(mfrow = c(3, 2))
+qqnorm(X) 
+qqline(X, col = 2)
+qqnorm(X_box) 
+qqline(X_box, col = 2)
+qqnorm(Y) 
+qqline(Y, col = 2)
+qqnorm(Y_box) 
+qqline(Y_box, col = 2)
+qqplot(X, Y, plot.it = TRUE, xlab = deparse(substitute(X)),
+       ylab = deparse(substitute(Y)))
+qqplot(X_box, Y_box, plot.it = TRUE, xlab = deparse(substitute(X_new)),
+       ylab = deparse(substitute(Y_new)))
+
+
+```
+
+Alternatively, Lambda = 0 or log transformation also gave a normal distribution of the data. 
+
+## 3. Linear Algebra and Correlation.   
+
+#### Using at least three untransformed variables, build a correlation matrix.  Invert your correlation matrix. (This is known as the precision matrix and contains variance inflation factors on the diagonal.) Multiply the correlation matrix by the precision matrix, and then multiply the precision matrix by the correlation matrix.
+
+```{r}
+num_col <- sapply(house, is.numeric)
+house_num <- house[,num_col]
+house_num <- subset(house_num, select=-c(Id),rm.na=TRUE)
+house_num <- na.omit(house_num)
+
+(cor_matrix <- round(cor(house_num,method = "pearson"),2))
+```
+
+Invert the correlation matrix 
+```{r}
+precision_matrix <- solve(cor_matrix)
+
+```
+
+Multiply the correlation matrix by the precision matrix, and then multiply the precision matrix by the correlation matrix.
+
+```{r}
+cor_matrix %*% precision_matrix 
+precision_matrix %*% cor_matrix
+```
+ALternative method:
+ 
+```{r}
+library(Hmisc)
+res2 <- rcorr(as.matrix(house_num))
+res2
+
+```
+
+
+## 4. Calculus-Based Probability & Statistics.  
+
+#### Many times, it makes sense to fit a closed form distribution to data.  For your non-transformed independent variable, location shift (if necessary)  it so that the minimum value is above zero.  Then load the MASS package and run fitdistr to fit a density function of your choice.  (See  https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/fitdistr.html ).  Find the optimal value of the parameters for this distribution, and then take 1000 samples from this distribution (e.g., rexp(1000, ???) for an exponential).  Plot a histogram and compare it with a histogram of your non-transformed original variable.   
+
+```{r}
+min(x)
+```
+
+```{r}
+min(Y)
+```
+
+There is no need to shift the data as all number are above zero.
+
+Before choosing the fited distributions, plot the empirical density and the histogram to gain insight of the data.
+
+```{r}
+par(mfrow = c(2,2))
+plotdist(X, histo = TRUE, demp = TRUE)
+plotdist(Y, histo = TRUE, demp = TRUE)
+```
+
+
+The untransformed X and Y have a skew distribution to the right, so the distribution could be chosen from are: log-normal distribution,  Gumbel distribution, the exponential distribution, the Pareto distribution, the Weibull distribution, and the Fréchet distribution to fit the data.
+
+The distribution from the MASS package are: "beta", "cauchy", "chi-squared", "exponential", "f", "gamma", "geometric", "log-normal", "lognormal", "logistic", "negative binomial", "normal", "Poisson", "t" and "weibull".
+
+The distribution from the fitdistrplus package are: : "norm", "lnorm", "pois", "exp", "gamma", "nbinom", "geom", "beta", "unif" and "logis".
+
+See some descriptive statistics to get more insight:
+```{r}
+descdist(X, discrete=FALSE, boot=500)
+```
+
+```{r}
+descdist(Y, discrete=FALSE, boot=500)
+```
+
+
+#### Use different plots to compares various fitted distributions:"exp", "lnorm", and "weibull". log logistic, Gumbel, and Pareto distributions available at package actuar could be used to fit the data. Though normal and uniform distribution is not a right distribution for the right-skewed distribution, "norm" and "unif" will also used as a reference.  
+
+```{r}
+s1 <- rexp(50, 1)
+f1 <- fitdist(s1, "exp")
+
+
+library(fitdistrplus)
+fit_nm <- fitdist(X, distr="norm")   
+fit_unf <- fitdist(X, distr="unif")  
+#fit_exp <- fitdist(X, "exp")
+fit_log <- fitdist(X, distr="lnorm") 
+fit_wb <- fitdist(X, distr="weibull") 
+
+fit_ll <- fitdist(X, "llogis", start = list(shape = 1, scale = 500))
+fit_p  <- fitdist(X, "pareto", start = list(shape = 1, scale = 500))
+fit_g  <- fitdist(X, "gumbel",start = list(alpha = 0.5,scale = 500))
+
+summary(fit_nm)
+summary(fit_unf)
+#summary(fit_exp)
+summary(fit_log)
+summary(fit_ll)
+summary(fit_wb)
+summary(fit_p)
+summary(fit_g)
+
+par(mfrow=c(2,2))
+plot.legend <- c("lnorm","llogis","Weibull","norm","unif")
+denscomp(list(fit_log, fit_ll,fit_wb, fit_p, fit_g,fit_nm,fit_unf), legendtext = plot.legend)
+cdfcomp(list(fit_log, fit_ll,fit_wb, fit_p, fit_g,fit_nm,fit_unf), legendtext = plot.legend)
+qqcomp(list(fit_log, fit_ll,fit_wb, fit_p, fit_g,fit_nm,fit_unf), legendtext = plot.legend)
+ppcomp(list(fit_log, fit_ll,fit_wb, fit_p, fit_g,fit_nm,fit_unf), legendtext = plot.legend)
+
+```
+
+Remove the uniform distribution from the comparing list and take a closer look at the cumulative distribution.
+
+```{r}
+cdfcomp(list(fit_log, fit_ll,fit_wb, fit_p, fit_g,fit_nm), xlogscale = TRUE, ylogscale = TRUE, legendtext = c("lognormal", "loglogistic", "Weibull","Pareto", "Gumbel","normal"), lwd=2)
+
+```
+
+From the plots, we can see that the dataset X cannot be properly fit by the log-normal distribution and loglogistic distribution.
+
+Computes goodness-of-fit statistics for parametric distributions fitted to the dataset X.
+
+```{r}
+gofstat(list(fit_log, fit_wb, fit_p, fit_g, fit_nm,fit_unf,fit_ll), fitnames = c("lnorm", "weibull", "Pareto", "Gumbell", "norm", "uniform","llogis"))
+```
+ 
+ 
+From the statistic, I conclude that loglogistic distribution is the best because its Kolmogorov-Smirnov statistic, Cramer-von Mises statistic, and Anderson-Darling statistic are substantially lower than the others. This is consistent to the plots vision.
+
+**The optimal value of the parameters:**
+
+```{r}
+fit_ll
+```
+
+Then take 1000 samples from the loglogistic distribution and use bootstrap approach to estimate the uncertainty in the parameters.  
+
+```{r}
+estm <- bootdist(fit_ll, niter = 1000)
+summary(estm)
+
+```
+
+Plot a histogram and compare it with a histogram of the non-transformed original variable. The log logistic, log normal, and Gumbell distribution transformations will be viewed.
+
+```{r}
+dllogis(X, shape = fit_ll$estimate[1], scale = fit_ll$estimate[2], log = FALSE) # flexsurv log logistic function
+
+loglogistic_trans <- rllogis(X, shape = fit_ll$estimate[1], scale = fit_ll$estimate[2])
+
+lognormal_trans <- rlnorm(X, meanlog = fit_log$estimate[1], sdlog = fit_log$estimate[2])
+
+gumbell_trans <- rgumbel(length(X), alpha = fit_g$estimate[1], scale = fit_g$estimate[2]) # actuar pacakge gumbell function
+
+par(mfrow=c(3,2))
+hist(X, freq = FALSE, breaks = 100, xlim = c(0, quantile(X, 0.99)))
+curve(dllogis(x, shape = fit_ll$estimate[1], scale = fit_ll$estimate[2], log = FALSE), col="red",  lwd=2, add=TRUE)
+hist(loglogistic_trans, freq = FALSE, breaks = 50,xlim = c(0, quantile(ll_trans, 0.99)))
+curve(dllogis(x, shape = fit_ll$estimate[1], scale = fit_ll$estimate[2], log = FALSE), col="red",  lwd=2, add=TRUE)
+
+hist(X, freq = FALSE, breaks = 100, xlim = c(0, quantile(X, 0.99)))
+curve(dlnorm(x, meanlog = fit_log$estimate[1], sdlog = fit_log$estimate[2], log = FALSE), col="blue",  lwd=2, add=TRUE)
+hist(lognormal_trans, freq = FALSE, breaks = 50,xlim = c(0, quantile(ln_trans, 0.99)))
+curve(dlnorm(x, meanlog = fit_log$estimate[1], sdlog = fit_log$estimate[2], log = FALSE), col="blue",  lwd=2, add=TRUE)
+
+hist(X, freq = FALSE, breaks = 100, xlim = c(0, quantile(X, 0.99)))
+curve(dgumbel(x, alpha = fit_g$estimate[1], scale = fit_g$estimate[2], log = FALSE), col="green",  lwd=2, add=TRUE)
+hist(gumbell_trans, freq = FALSE, breaks = 50,xlim = c(0, quantile(gmb_trans, 0.99)))
+curve(dgumbel(x, alpha = fit_g$estimate[1], scale = fit_g$estimate[2], log = FALSE), col="green",  lwd=2, add=TRUE)
+
+```
+
+
+

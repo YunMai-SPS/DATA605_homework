@@ -1,0 +1,569 @@
+---
+title: "YMai_final_project_p2"
+author: "Yun Mai"
+date: "December 27, 2017"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#### Load the packages
+```{r}
+suppressWarnings(suppressMessages(library(tidyr)))
+suppressWarnings(suppressMessages(library(dplyr)))
+suppressWarnings(suppressMessages(library(knitr)))
+suppressWarnings(suppressMessages(library(ggplot2)))
+suppressWarnings(suppressMessages(library(graphics)))
+#suppressWarnings(suppressMessages(library(gplots)))
+suppressWarnings(suppressMessages(library(pastecs)))
+suppressWarnings(suppressMessages(library(MASS)))
+suppressWarnings(suppressMessages(library(fitdistrplus)))
+suppressWarnings(suppressMessages(library(actuar)))
+suppressWarnings(suppressMessages(library(geoR))) #boxcoxfit
+suppressWarnings(suppressMessages(library(flexsurv))) #dllogis
+
+suppressWarnings(suppressMessages(library(vtreat)))  # One-hot-encoding and data cleaning
+suppressWarnings(suppressMessages(library(magrittr)))  # use_series suppressWarnings(suppressMessages(library(Metrics))) #rmse()
+suppressWarnings(suppressMessages(library(broom)))  #glance() 
+suppressWarnings(suppressMessages(library(ranger))) # random forest model
+suppressWarnings(suppressMessages(library(xgboost))) # gradient boost model
+#suppressWarnings(suppressMessages(library( )))
+
+```
+
+
+## Data source
+
+compete in the House Prices: Advanced Regression Techniques competition.  https://www.kaggle.com/c/house-prices-advanced-regression-techniques . 
+
+Pick one of the quantitative independent variables from the training data set (train.csv) , and define that variable as  X.   Pick SalePrice as the dependent variable, and define it as Y for the next analysis.   
+
+```{r}
+house <- read.csv('https://raw.githubusercontent.com/YunMai-SPS/DATA605_homework/master/data605_final_project/train.csv')
+
+kable(head(house,5))
+```
+
+## 5. Modeling   
+
+#### Build some type of regression model and submit your model to the competition board.  Provide your complete model summary and results with analysis.  Report your Kaggle.com  user name and score.
+
+### Compare three models: linear regression, random forest, and gradient boost.
+
+View the relationships between Saleprice and all numerical variables. Pick the variables has linear relation to the saleprice.
+
+```{r}
+num_df_0 <- Filter(is.numeric, house)
+num_df <- na.omit(num_df_0)
+num_df <- subset(num_df, select=-c(Id))
+num_df1 <- cbind(num_df$SalePrice, num_df[,0:8])
+num_df2 <- cbind(num_df$SalePrice, num_df[,9:16])
+num_df3 <- cbind(num_df$SalePrice, num_df[,17:24])
+num_df4 <- cbind(num_df$SalePrice, num_df[,25:32])
+num_df5 <- cbind(num_df$SalePrice, num_df[,33:36])
+
+plot(num_df1,pch=20, col="blue", main="Matrix Scatterplot of house data: part 1")
+plot(num_df2,pch=20, col="blue", main="Matrix Scatterplot of house data: part 2")
+plot(num_df3,pch=20, col="blue", main="Matrix Scatterplot of house data: part 3")
+plot(num_df4,pch=20, col="blue", main="Matrix Scatterplot of house data: part 4")
+plot(num_df5,pch=20, col="blue", main="Matrix Scatterplot of house data: part 5")
+
+```
+
+**Select Features**
+```{r}
+#colnames(num_df)
+
+# pick continuous variables which seems having linear relation to saleprice 
+lin_var <-  c("LotFrontage", "LotArea", "OverallQual", "OverallCond", "YearBuilt","YearRemodAdd" , "MasVnrArea", "BsmtFinSF1","BsmtFinSF2", "BsmtUnfSF" , "TotalBsmtSF", "X1stFlrSF", "X2ndFlrSF" , "LowQualFinSF","GrLivArea" , "GarageYrBlt" , "GarageCars","GarageArea", "WoodDeckSF", "OpenPorchSF" )
+
+#in the selected linear relation, there are some variables has large number of 0. 
+exclude_var <- c("MasVnrArea","BsmtFinSF1","BsmtFinSF2","X2ndFlrSF","WoodDeckSF","OpenPorchSF")
+
+# numeric categorical variables
+num_cat <- c( "BsmtFullBath", "BsmtHalfBath", "FullBath","HalfBath","BedroomAbvGr", "KitchenAbvGr", "TotRmsAbvGrd", "Fireplaces", "GarageCars", "MoSold" , "YrSold") 
+
+# numeric categorical variables which seems having linear relation to saleprice 
+lin_numcat <- c("FullBath","TotRmsAbvGrd" )
+```
+
+
+
+#### Linear Regression Model
+
+```{r}
+cat_col <- colnames(house)[!colnames(house) %in% colnames(num_df_0)]  
+# Create the formula 
+fmla <- paste("SalePrice", "~", paste(c(lin_var,cat_col[1:2],cat_col[4:5],cat_col[7:38],cat_col[42:43]), collapse = " + "))  # only the categorical variables can fit the model were selected
+
+# Fit the model
+model_lin <- lm(fmla,house)
+
+# Print bloodpressure_model and call summary() 
+summary(model_lin) 
+```
+
+```{r}
+features_df <- data.frame(summary(model_lin)$coef[summary(model_lin)$coef[,4] <= .05, 4])
+features <- row.names(features_df)[-1]
+features_num <- features[features %in% colnames(num_df_0)]  
+features_cat <- features[!features %in% features_num]
+features_cat <- c("Neighborhood","RoofMatl","KitchenQual") # select the variables which have more than one level with p<0.05
+
+df_lin <- house[,colnames(house)%in%c("SalePrice",features_num,features_cat)]
+#dim(df_lin)
+
+df_lin <- na.omit(df_lin)
+#dim(df_lin)
+```
+
+**split the data into train and test data set.seed**
+```{r}
+#split the data into train and test data set.seed
+(N <- nrow(df_lin))
+
+# Calculate how many rows 75% of N should be and print it
+(target <- round(0.75*N))
+
+# Create the vector of N uniform random variables: gp
+gp <- runif(N)
+
+# Use gp to create the training set: mpg_train (75% of data) and mpg_test (25% of data)
+df_lin_train <- df_lin[gp < 0.75, ]
+df_lin_test <- df_lin[gp >= 0.75, ]
+```
+
+
+**Train a model using test/train split**
+```{r}
+# Create a formula to express cty as a function of hwy: fmla and print it.
+fmla <- paste("SalePrice", "~", paste(c(features_num,features_cat), collapse = " + "))
+
+# Now use lm() to build a model from df_lin_train that predicts SalePrice from the selected features 
+model_lin <- lm(fmla,data=df_lin_train)
+
+# Use summary() to examine the model
+summary(model_lin)
+
+#Evaluate the model using test/train split
+
+# predict cty from hwy for the training set
+df_lin_train$pred <- predict(model_lin,df_lin_train)
+
+# predict SalePrice from the selected features for the testing set
+# df_lin_test$pred <- predict(model_lin,df_lin_test)
+```
+
+Then an error occured after commanding the prediction for the testing set: Error in eval(predvars, data, env) : object 'LotFrontage_clean' not found
+
+
+Because some levels of categorical data in the testing data don't appear in the training data, the model crashed. So vtreat package will be used to one-hot-encode the categorical variable.
+
+```{r}
+# Create and print a vector of variable names
+vars <-c("SalePrice",features_num,features_cat)
+
+# Create the treatment plan
+treatplan <- designTreatmentsZ(df_lin, vars)
+
+
+# Examine the scoreFrame
+scoreFrame <- treatplan %>%
+    use_series(scoreFrame) %>%
+    dplyr::select(varName, origName, code)
+
+
+# We only want the rows with codes "clean" or "lev"
+newvars <- scoreFrame %>%
+    filter(code %in% c("clean", "lev")) %>%
+    use_series(varName)
+
+
+# Use prepare() to one-hot-encode training data
+trainframe.treat <- prepare(treatplan, df_lin_train, varRestriction = newvars)
+head(trainframe.treat,5)
+
+# Use prepare() to one-hot-encode test data
+testframe.treat <- prepare(treatplan, df_lin_test, varRestriction = newvars)
+head(testframe.treat,5)
+
+#Train a model using test/train split
+
+# Create a formula to express cty as a function of hwy: fmla and print it.
+fmla <- paste("SalePrice_clean", "~", paste(colnames(trainframe.treat)[-1], collapse = " + "))
+
+# Now use lm() to build a model from df_lin_train that predicts SalePrice from the selected features 
+model_lin <- lm(fmla,data=trainframe.treat)
+
+# Use summary() to examine the model
+summary(model_lin)
+
+#Evaluate the model using test/train split
+
+# predict SalePrice from selected features(vars) for the training set
+trainframe.treat$pred_lin <- predict(model_lin,trainframe.treat)
+
+# predict SalePrice from the selected features for the test set
+testframe.treat$pred_lin <- predict(model_lin,testframe.treat)
+
+# Evaluate the RMSE on both training and test data and print them
+trainframe.treat %>%
+  mutate(residuals = SalePrice_clean - pred_lin) %>%
+  summarize(rmse_train = sqrt(mean(residuals^2)))
+
+testframe.treat %>%
+  mutate(residuals = SalePrice_clean - pred_lin) %>%
+  summarize(rmse_test = sqrt(mean(residuals^2)))
+
+#examine how well the model fits the data
+r2_lin <- glance(model_lin)$r.squared
+cat("R^2 for testing set with Linear Regression model is ", r2_lin)
+
+#plot predictions (on x-axis) versus the SalePrice
+p <- ggplot(testframe.treat, aes(x = pred_lin, y = SalePrice_clean)) 
+p <- p + geom_point() 
+p + geom_abline()
+
+testframe.copy <- testframe.treat
+testframe.copy$residuals <- testframe.copy$SalePrice_clean - testframe.copy$pred_lin 
+
+#plot predictions (on x-axis) versus the residuals
+p <- ggplot(testframe.copy, aes(x = pred_lin, y = residuals)) 
+p <- p + geom_pointrange(aes(ymin = 0, ymax = residuals))
+p <- p + geom_hline(yintercept = 0, linetype = 3) 
+p + ggtitle("residuals vs. linear model prediction")
+
+# Plot predictions and actual SalePrice as a function of LotArea
+testframe.treat %>% 
+  gather(key = valuetype, value = value, SalePrice_clean, pred_lin) %>%
+  ggplot(aes(x = LotArea_clean, y = value, color = valuetype, linetype = valuetype)) + 
+  geom_point() + 
+  geom_line() + 
+  scale_x_continuous("LotArea_clean", breaks = 0:10, labels = 0:10) + 
+  scale_color_brewer(palette = "Set1") + 
+  coord_trans(x = "log10") +
+  ggtitle("Predicted SalePrice, linear regression model")
+
+```
+
+
+#### Random Forest Model
+```{r}
+# Fit the random forest model
+model_rf <- ranger(fmla, 
+                    trainframe.treat, 
+                    num.trees = 500, 
+                    respect.unordered.factors = "order", 
+                    seed = 123 )
+
+#Predict SalePirce with the random forest model
+testframe.treat$pred_rf <- predict(model_rf, testframe.treat)$predictions 
+
+# Calculate the RMSE of the predictions
+testframe.treat %>% 
+  mutate(residual_rf = SalePrice_clean - pred_rf)  %>% 
+  summarize(rmse_rf  = sqrt(mean(residual_rf^2)))      
+
+#examine how well the model fits the data: calculate R-squared: rsq.
+slpr_mean <- mean(testframe.treat$SalePrice_clean)
+tss <- sum((testframe.treat$SalePrice_clean - slpr_mean)^2)
+rss <- sum((testframe.treat$SalePrice_clean - testframe.treat$pred_rf)^2)
+rsq <- 1-rss/tss
+cat("R^2 for testing set with Random Forest model is ", rsq)
+
+# Plot actual outcome vs predictions (predictions on x-axis)
+ggplot(testframe.treat, aes(x = pred_rf, y = SalePrice_clean)) + 
+  geom_point() + 
+  geom_abline()
+
+
+
+```
+
+
+#### Gradient Boost Model
+
+```{r}
+#Find the right number of trees for a gradient boosting machine
+cv <- xgb.cv(data = as.matrix(trainframe.treat),
+             label = trainframe.treat$SalePrice_clean,
+             nrounds = 100,
+             nfold = 5,
+             objective = "reg:linear",
+             eta = 0.3,
+             max_depth = 6,
+             early_stopping_rounds = 10,
+             verbose = 0    # silent
+             )
+
+# Get the evaluation log 
+elog <- as.data.frame(cv$evaluation_log)
+
+# Determine and print how many trees minimize training and test error
+ntrees <- elog %>% 
+  summarize(ntrees.train = which.min(elog$train_rmse_mean),
+            ntrees.test  = which.min(elog$test_rmse_mean))  
+
+#Fit an xgboost bike rental model and predict
+model_gb <- xgboost(data = as.matrix(trainframe.treat),
+                    label = trainframe.treat$SalePrice_clean, 
+                    nrounds = ntrees[,'ntrees.train'],
+                    objective =  "reg:linear", 
+                    eta = 0.3,
+                    depth = 6,
+                    verbose = 0)
+
+
+# Make predictions
+testframe.treat$pred_gb <- predict(model_gb, as.matrix(testframe.treat))
+
+# Plot predictions (on x axis) vs actual SalePrice
+ggplot(testframe.treat, aes(x = pred_gb, y = SalePrice_clean)) + 
+  geom_point() + 
+  geom_abline()
+
+#Evaluate the xgboost house SalePrice model
+
+# Calculate RMSE
+testframe.treat %>%
+  mutate(residuals_gb = SalePrice_clean - pred_gb) %>%
+  summarize(rmse_gb = sqrt(mean(residuals_gb^2)))
+
+#examine how well the model fits the data: calculate R-squared: rsq.
+slpr_mean <- mean(testframe.treat$SalePrice_clean)
+tss <- sum((testframe.treat$SalePrice_clean - slpr_mean)^2)
+rss <- sum((testframe.treat$SalePrice_clean - testframe.treat$pred_gb)^2)
+rsq_gb <- 1-rss/tss
+cat("R^2 for testing set with Gradient Boost model is ", rsq_gb)
+
+
+#Visualize the xgboost model
+# Plot predictions and actual SalePrice as a function of LotArea
+testframe.treat %>% 
+  gather(key = valuetype, value = value, SalePrice_clean, pred_gb) %>%
+  ggplot(aes(x = LotArea_clean, y = value, color = valuetype, linetype = valuetype)) + 
+  geom_point() + 
+  geom_line() + 
+  scale_x_continuous("LotArea_clean", breaks = 0:10, labels = 0:10) + 
+  scale_color_brewer(palette = "Dark2") + 
+  coord_trans(x = "log10") +
+  ggtitle("Predicted SalePrice, Gradient Boost model")
+
+```
+
+```{r}
+# Gather the predictions into a "long" dataset
+testframe.treat_long <- testframe.treat %>%
+  gather(key = modeltype, value = pred, pred_lin, pred_rf,pred_gb)
+
+# Compare the predictions against actual SalePrice on the test data
+testframe.treat_long %>%
+  ggplot(aes(x = LotArea_clean)) +                          
+  geom_point(aes(y = SalePrice_clean)) +                 
+  geom_point(aes(y = pred, color = modeltype)) +  
+  geom_line(aes(y = pred, color = modeltype, linetype = modeltype))+
+  scale_x_log10() 
+  
+```
+
+
+### Kaggle competetion
+
+```{r}
+features_df <- data.frame(summary(model_lin)$coef[summary(model_lin)$coef[,4] <= .05, 4])
+features <- row.names(features_df)[-1]
+features_num <- features[features %in% colnames(num_df_0)]  
+features_cat <- features[!features %in% features_num]
+features_cat <- c("Neighborhood","RoofMatl","KitchenQual") # select the variables which have more than one level with p<0.05
+
+df_lin <- house[,colnames(house)%in%c("SalePrice",features_num,features_cat)]
+
+# train and test data are splited by Kaggle competetion: House Prices-Advanced Regression Techniques
+
+# Use gp to create the training set: mpg_train (75% of data) and mpg_test (25% of data)
+df_lin_train <-  read.csv('https://raw.githubusercontent.com/YunMai-SPS/DATA605_homework/master/data605_final_project/train.csv')
+df_lin_test <- read.csv('https://raw.githubusercontent.com/YunMai-SPS/DATA605_homework/master/data605_final_project/test.csv')
+```
+
+#### Linear Regression Model
+```{r}
+# Create  a vector of variable names
+vars <-c("SalePrice",features_num,features_cat)
+vars_test <-c("Id",features_num,features_cat)
+
+# Create the treatment plan
+treatplan <- designTreatmentsZ(df_lin_train, vars)
+treatplan_test <- designTreatmentsZ(df_lin_test, vars_test)
+
+# Examine the scoreFrame
+scoreFrame <- treatplan %>%
+    use_series(scoreFrame) %>%
+    dplyr::select(varName, origName, code)
+
+
+# We only want the rows with codes "clean" or "lev"
+newvars <- scoreFrame %>%
+    filter(code %in% c("clean", "lev")) %>%
+    use_series(varName)
+
+
+# Use prepare() to one-hot-encode training data
+trainframe.treat <- prepare(treatplan, df_lin_train, varRestriction = newvars)
+
+# Examine the scoreFrame
+scoreFrame_test <- treatplan_test %>%
+    use_series(scoreFrame) %>%
+    dplyr::select(varName, origName, code)
+
+
+# We only want the rows with codes "clean" or "lev"
+newvars_test <- scoreFrame_test %>%
+    filter(code %in% c("clean", "lev")) %>%
+    use_series(varName)
+
+# Use prepare() to one-hot-encode testframe
+(testframe.treat <- prepare(treatplan_test, df_lin_test, varRestriction = newvars_test))
+
+
+#Train a model using train data
+
+# Create a formula to express cty as a function of hwy: fmla and print it.
+fmla <- paste("SalePrice_clean", "~", paste(colnames(trainframe.treat)[-1], collapse = " + "))
+
+# use lm() to build a model from df_lin_train 
+model_lin <- lm(fmla,data=trainframe.treat)
+
+# predict SalePrice from selected features(vars) for the training set
+trainframe.treat$pred_lin <- predict(model_lin,trainframe.treat)
+
+# predict SalePrice from the selected features for the test set
+testframe.treat$pred_lin <- predict(model_lin,testframe.treat)
+
+
+# evaluate the RMSE on training data
+trainframe.treat %>%
+  mutate(residuals_lin = SalePrice_clean - pred_lin) %>%
+  summarize(rmse_lin = sqrt(mean(residuals_lin^2)))
+
+# examine how well the model fits the data
+r2_lin <- glance(model_lin)$r.squared
+cat("The R^2 for the training data with Random Forest model is ",r2_lin)
+
+resultsdf_lin <- testframe.treat[,c('Id_clean','pred_lin')]
+colnames(resultsdf_lin) <- c('Id','SalePrice')
+write.csv(resultsdf_lin,file='houseprice_linear.csv')
+```
+
+#### Random Forest Model
+```{r}
+# Fit the random forest model
+model_rf <- ranger(fmla, 
+                    trainframe.treat, 
+                    num.trees = 500, 
+                    respect.unordered.factors = "order", 
+                    seed = 123 )
+
+#Predict SalePirce with the random forest model
+trainframe.treat$pred_rf <- predict(model_rf, trainframe.treat)$predictions 
+testframe.treat$pred_rf <- predict(model_rf, testframe.treat)$predictions 
+
+# evaluate the RMSE on training data
+trainframe.treat %>%
+  mutate(residuals_rf = SalePrice_clean - pred_rf) %>%
+  summarize(rmse_rf = sqrt(mean(residuals_rf^2)))
+
+#examine how well the model fits the data: calculate R-squared: rsq.
+slpr_mean <- mean(trainframe.treat$SalePrice_clean)
+tss <- sum((trainframe.treat$SalePrice_clean - slpr_mean)^2)
+rss <- sum((trainframe.treat$SalePrice_clean - trainframe.treat$pred_rf)^2)
+rsq_rf <- 1-rss/tss
+cat("R^2 for testing set with Random Forest model is ", rsq_rf)
+
+resultsdf_rf <- testframe.treat[,c('Id_clean','pred_rf')]
+colnames(resultsdf_rf) <- c('Id','SalePrice')
+write.csv(resultsdf_rf,file='houseprice_RandomForest.csv')
+
+```
+
+
+#### Gradient Boost Model
+
+```{r}
+#Find the right number of trees for a gradient boosting machine
+cv <- xgb.cv(data = as.matrix(trainframe.treat),
+             label = trainframe.treat$SalePrice_clean,
+             nrounds = 100,
+             nfold = 5,
+             objective = "reg:linear",
+             eta = 0.3,
+             max_depth = 6,
+             early_stopping_rounds = 10,
+             verbose = 0    # silent
+             )
+
+# Get the evaluation log 
+elog <- as.data.frame(cv$evaluation_log)
+
+# Determine and print how many trees minimize training and test error
+ntrees <- elog %>% 
+  summarize(ntrees.train = which.min(elog$train_rmse_mean),
+            ntrees.test  = which.min(elog$test_rmse_mean))  
+
+#Fit an xgboost bike rental model and predict
+model_gb <- xgboost(data = as.matrix(trainframe.treat),
+                    label = trainframe.treat$SalePrice_clean, 
+                    nrounds = ntrees[,'ntrees.train'],
+                    objective =  "reg:linear", 
+                    eta = 0.3,
+                    depth = 6,
+                    verbose = 0)
+
+
+# Make predictions
+trainframe.treat$pred_gb <- predict(model_gb, as.matrix(trainframe.treat))
+testframe.treat$pred_gb <- predict(model_gb, as.matrix(testframe.treat))
+
+#Evaluate the xgboost house SalePrice model
+
+# Calculate RMSE
+trainframe.treat %>%
+  mutate(residuals_gb = SalePrice_clean - pred_gb) %>%
+  summarize(rmse_gb = sqrt(mean(residuals_gb^2)))
+
+#examine how well the model fits the data: calculate R-squared: rsq.
+slpr_mean <- mean(trainframe.treat$SalePrice_clean)
+tss <- sum((trainframe.treat$SalePrice_clean - slpr_mean)^2)
+rss <- sum((trainframe.treat$SalePrice_clean - trainframe.treat$pred_gb)^2)
+rsq_gb <- 1-rss/tss
+cat("R^2 for testing set with Gradient Boost model is ", rsq_gb)
+
+resultsdf_gb <- testframe.treat[,c('Id_clean','pred_gb')]
+colnames(resultsdf_gb) <- c('Id','SalePrice')
+write.csv(resultsdf_gb,file='houseprice_GradientBoost.csv')
+
+```
+
+```
+Kaggle Score
+Username: YunM
+Best Score: 0.16222
+```
+![best Kaggle score](https://raw.githubusercontent.com/YunMai-SPS/DATA605_homework/master/data605_final_project/kagglescorer_rf.png)
+
+```
+![best Kaggle score](https://github.com/YunMai-SPS/DATA605_homework/blob/master/data605_final_project/kagglescorer_rf.png)
+
+```
+
+## Summary
+
+In this project, a house price data set were used to study the probability, descriptive and inferential statistics, linear algebra and correlation, calculus-based probability & statistics and regression model.  
+
+In the part-2, I used three methods: linear regression, random forest, and gradient boost to build the regression model. First I tried to manually split the data into train and test in order to train the data set. But there were some levels of the categorical variables are rare and failed to show up in training data but only appeared in the testing data. This crashed the linear regression model. So I used the vtreat package to one-hot-encode the data. To deal with this issue, I used vtreat for one-hot-encoding as it can manage novel levels safely. It is a bonus find that vtreat also manages missing values in the data (both categorical and continuous).
+
+The Box-Cox transformations in part 1 suggested that log-logistic distribution fit the input variable(LotArea) best. Because I wanted to build a multivariate regression, I plotted the variables to see which variables are non-linear and therefore need to transform. OverallQual seems to be non-linear but the trend is not very strong, so I did not do transform it. The variables with the p-value less than 0.05 in the linear regression model were selected as features or inputs.
+
+For the three models, Gradient Boost showed the lowest RMSE and the highest R square, 0.99 and Linear Regression showed the highest RMSE and the lowest R square, 0.82. The performance of the Random Forest model was between above mentioned two models. But one thing I did not understand was that the predicted sale prices by the Gradient Boost model for the test set from Kaggle were 1/10 of those predicted by the other two models. There must be something needed to be adjusted.
