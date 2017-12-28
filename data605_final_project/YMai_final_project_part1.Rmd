@@ -621,6 +621,7 @@ summary(estm)
 
 ```
 
+
 Plot a histogram and compare it with a histogram of the non-transformed original variable. The log logistic, log normal, and Gumbell distribution transformations will be viewed.
 
 ```{r}
