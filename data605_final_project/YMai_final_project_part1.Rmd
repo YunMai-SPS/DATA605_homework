@@ -2,7 +2,7 @@
 title: "YMai_final_project_part1"
 author: "Yun Mai"
 date: "December 17, 2017"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
@@ -39,6 +39,7 @@ suppressWarnings(suppressMessages(library(MASS)))
 suppressWarnings(suppressMessages(library(fitdistrplus)))
 suppressWarnings(suppressMessages(library(actuar)))
 suppressWarnings(suppressMessages(library(geoR))) #boxcoxfit
+suppressWarnings(suppressMessages(library(Hmisc))) 
 suppressWarnings(suppressMessages(library(flexsurv))) #dllogis
 
 suppressWarnings(suppressMessages(library(vtreat)))  # One-hot-encoding and data cleaning
@@ -506,7 +507,7 @@ precision_matrix %*% cor_matrix
 ALternative method:
  
 ```{r}
-library(Hmisc)
+
 res2 <- rcorr(as.matrix(house_num))
 res2
 
@@ -634,17 +635,17 @@ gumbell_trans <- rgumbel(length(X), alpha = fit_g$estimate[1], scale = fit_g$est
 par(mfrow=c(3,2))
 hist(X, freq = FALSE, breaks = 100, xlim = c(0, quantile(X, 0.99)))
 curve(dllogis(x, shape = fit_ll$estimate[1], scale = fit_ll$estimate[2], log = FALSE), col="red",  lwd=2, add=TRUE)
-hist(loglogistic_trans, freq = FALSE, breaks = 50,xlim = c(0, quantile(ll_trans, 0.99)))
+hist(loglogistic_trans, freq = FALSE, breaks = 50,xlim = c(0, quantile(loglogistic_trans, 0.99)))
 curve(dllogis(x, shape = fit_ll$estimate[1], scale = fit_ll$estimate[2], log = FALSE), col="red",  lwd=2, add=TRUE)
 
 hist(X, freq = FALSE, breaks = 100, xlim = c(0, quantile(X, 0.99)))
 curve(dlnorm(x, meanlog = fit_log$estimate[1], sdlog = fit_log$estimate[2], log = FALSE), col="blue",  lwd=2, add=TRUE)
-hist(lognormal_trans, freq = FALSE, breaks = 50,xlim = c(0, quantile(ln_trans, 0.99)))
+hist(lognormal_trans, freq = FALSE, breaks = 50,xlim = c(0, quantile(lognormal_trans, 0.99)))
 curve(dlnorm(x, meanlog = fit_log$estimate[1], sdlog = fit_log$estimate[2], log = FALSE), col="blue",  lwd=2, add=TRUE)
 
 hist(X, freq = FALSE, breaks = 100, xlim = c(0, quantile(X, 0.99)))
 curve(dgumbel(x, alpha = fit_g$estimate[1], scale = fit_g$estimate[2], log = FALSE), col="green",  lwd=2, add=TRUE)
-hist(gumbell_trans, freq = FALSE, breaks = 50,xlim = c(0, quantile(gmb_trans, 0.99)))
+hist(gumbell_trans, freq = FALSE, breaks = 50,xlim = c(0, quantile(gumbell_trans, 0.99)))
 curve(dgumbel(x, alpha = fit_g$estimate[1], scale = fit_g$estimate[2], log = FALSE), col="green",  lwd=2, add=TRUE)
 
 ```
